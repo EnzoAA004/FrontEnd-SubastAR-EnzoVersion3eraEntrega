@@ -37,6 +37,7 @@ export function LiveAuctionScreen() {
   const [paymentId, setPaymentId] = useState('');
   const [lastLotId, setLastLotId] = useState<string>();
   const [realtimeNotice, setRealtimeNotice] = useState<string>();
+  const [auctionFinished, setAuctionFinished] = useState(false);
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['live', id],
     queryFn: () => auctionService.live(id),
@@ -55,13 +56,21 @@ export function LiveAuctionScreen() {
     if (!id || !session) return;
 
     const unsubscribeAuction = subscribeToAuction(id, (event) => {
-      if (event.type === 'LOT_CHANGED' || event.type === 'AUCTION_FINISHED') {
+      if (event.type === 'AUCTION_FINISHED') {
+        setAuctionFinished(true);
         void refetch();
-        setRealtimeNotice(event.message ?? (event.type === 'LOT_CHANGED' ? 'Cambio el lote activo.' : 'La subasta finalizo.'));
+        setRealtimeNotice(event.message ?? 'La subasta finalizo.');
         return;
       }
 
-      if (event.type !== 'BID_PLACED') return;
+      if (event.type === 'LOT_CHANGED') {
+        setAuctionFinished(false);
+        void refetch();
+        setRealtimeNotice(event.message ?? 'Cambio el lote activo.');
+        return;
+      }
+
+      if (event.type !== 'BID_PLACED' && event.type !== 'BID_OUTBID') return;
 
       const nextBid = bidFromRealtimeEvent(event);
       queryClient.setQueryData<LiveAuctionData>(['live', id], (current) => {
@@ -80,7 +89,8 @@ export function LiveAuctionScreen() {
       });
 
       const isOwnBid = !!event.bidderEmail && event.bidderEmail.toLowerCase() === session.profile.email.toLowerCase();
-      const wasOutbid = !!event.previousLeaderEmail && event.previousLeaderEmail.toLowerCase() === session.profile.email.toLowerCase();
+      const wasOutbid = event.type === 'BID_OUTBID'
+        || (!!event.previousLeaderEmail && event.previousLeaderEmail.toLowerCase() === session.profile.email.toLowerCase());
       setRealtimeNotice(wasOutbid ? 'Tu oferta fue superada.' : isOwnBid ? 'Tu puja fue registrada.' : event.message ?? 'Nueva mejor oferta recibida.');
     });
 
@@ -109,10 +119,13 @@ export function LiveAuctionScreen() {
   );
   if (isLoading) return <Screen><LoadingState /></Screen>;
   if (isError || !data) return <Screen><Header title="Subasta en vivo" onBack={back} /><ErrorState onRetry={() => refetch()} /></Screen>;
-  if (!data.lot) return (
+  if (auctionFinished || !data.lot) return (
     <Screen>
       <Header title="Subasta en vivo" onBack={back} />
-      <EmptyState title="No hay lote activo" message="El lote finalizó o aún no comenzó." />
+      <EmptyState
+        title={auctionFinished ? 'Subasta finalizada' : 'No hay lote activo'}
+        message={auctionFinished ? 'La subasta finalizo. Consulta el resultado del ultimo lote disponible.' : 'El lote finalizó o aún no comenzó.'}
+      />
       <Button label="Actualizar estado" variant="ghost" onPress={() => refetch()} />
       {lastLotId ? <Button label="Consultar resultado del lote" onPress={() => router.push({ pathname: '/result/[id]', params: { id, itemId: lastLotId } })} /> : null}
     </Screen>

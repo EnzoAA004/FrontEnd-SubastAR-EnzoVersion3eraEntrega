@@ -58,7 +58,11 @@ function stringFrom(value: unknown): string | undefined {
 }
 
 function buildRealtimeUrl() {
-  return `${apiConfig.baseUrl.replace(/^http:\/\//, 'ws://').replace(/^https:\/\//, 'wss://')}/ws`;
+  const wsBaseUrl = apiConfig.baseUrl
+    .replace(/\/+$/, '')
+    .replace(/^http:\/\//, 'ws://')
+    .replace(/^https:\/\//, 'wss://');
+  return wsBaseUrl.endsWith('/ws') ? wsBaseUrl : `${wsBaseUrl}/ws`;
 }
 
 function normalizeAuctionEvent(raw: Record<string, unknown>): AuctionRealtimeEvent | undefined {
