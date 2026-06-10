@@ -37,6 +37,31 @@ export interface Bid {
   timestamp: string;
 }
 
+export type RealtimeEventType =
+  | 'BID_PLACED'
+  | 'LOT_CHANGED'
+  | 'AUCTION_FINISHED'
+  | 'NOTIFICATION_CREATED';
+
+export interface AuctionRealtimeEvent {
+  type: RealtimeEventType;
+  auctionId?: string;
+  lotId?: string;
+  bidId?: string;
+  bidder?: string;
+  bidderEmail?: string;
+  previousLeader?: string;
+  previousLeaderEmail?: string;
+  amount?: number;
+  bestBid?: number;
+  minBid?: number;
+  maxBid?: number;
+  secondsLeft?: number;
+  timestamp?: string;
+  title?: string;
+  message?: string;
+}
+
 export interface AuctionResult {
   status: string;
   lotId: string;
@@ -144,6 +169,11 @@ export type UserNotification = {
   timestamp: string;
   read: boolean;
 };
+
+export interface UserNotificationRealtimeEvent {
+  type: 'NOTIFICATION_CREATED';
+  notification: UserNotification;
+}
 
 export interface UserProfile {
   name: string;
