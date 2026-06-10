@@ -216,6 +216,13 @@ export function subscribeToAuction(subastaId: string, callback: Callback<Auction
   });
 }
 
+export function subscribeToUserBidEvents(callback: Callback<AuctionRealtimeEvent>) {
+  return subscribeDestination('/user/queue/pujas', callback, (message) => {
+    const raw = parseJson<Record<string, unknown>>(message);
+    return raw ? normalizeAuctionEvent(raw) : undefined;
+  });
+}
+
 export function subscribeToUserNotifications(callback: Callback<UserNotificationRealtimeEvent>) {
   return subscribeDestination('/user/queue/notificaciones', callback, (message) => {
     const raw = parseJson<Record<string, unknown>>(message);

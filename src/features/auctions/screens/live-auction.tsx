@@ -10,7 +10,7 @@ import { colors, fonts, radius, spacing, typography } from '@/constants/theme';
 import { useSafeBack } from '@/hooks/use-safe-back';
 import { useSession } from '@/providers/app-provider';
 import { auctionService, paymentService } from '@/services/api';
-import { addRealtimeStatusListener, subscribeToAuction } from '@/services/realtime';
+import { addRealtimeStatusListener, subscribeToAuction, subscribeToUserBidEvents } from '@/services/realtime';
 import type { AuctionRealtimeEvent, Bid } from '@/types/domain';
 import { BidHistoryRow } from '@/features/auctions/components/bid-history-row';
 import { formatAuctionMoney, useId } from '@/features/auctions/utils';
@@ -33,6 +33,7 @@ export function LiveAuctionScreen() {
   const back = useSafeBack();
   const id = useId();
   const { session } = useSession();
+  const sessionEmail = session?.profile.email.toLowerCase();
   const [amount, setAmount] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [lastLotId, setLastLotId] = useState<string>();
@@ -70,7 +71,15 @@ export function LiveAuctionScreen() {
         return;
       }
 
-      if (event.type !== 'BID_PLACED' && event.type !== 'BID_OUTBID') return;
+      if (event.type === 'BID_OUTBID') {
+        if (event.previousLeaderEmail?.toLowerCase() === sessionEmail) {
+          setRealtimeNotice('Tu oferta fue superada.');
+          void refetch();
+        }
+        return;
+      }
+
+      if (event.type !== 'BID_PLACED') return;
 
       const nextBid = bidFromRealtimeEvent(event);
       queryClient.setQueryData<LiveAuctionData>(['live', id], (current) => {
@@ -88,10 +97,15 @@ export function LiveAuctionScreen() {
         };
       });
 
-      const isOwnBid = !!event.bidderEmail && event.bidderEmail.toLowerCase() === session.profile.email.toLowerCase();
-      const wasOutbid = event.type === 'BID_OUTBID'
-        || (!!event.previousLeaderEmail && event.previousLeaderEmail.toLowerCase() === session.profile.email.toLowerCase());
-      setRealtimeNotice(wasOutbid ? 'Tu oferta fue superada.' : isOwnBid ? 'Tu puja fue registrada.' : event.message ?? 'Nueva mejor oferta recibida.');
+      const isOwnBid = !!event.bidderEmail && event.bidderEmail.toLowerCase() === sessionEmail;
+      setRealtimeNotice(isOwnBid ? 'Tu puja fue registrada.' : event.message ?? 'Nueva mejor oferta recibida.');
+    });
+
+    const unsubscribeUserBidEvents = subscribeToUserBidEvents((event) => {
+      if (event.type !== 'BID_OUTBID') return;
+      if (event.auctionId && event.auctionId !== id) return;
+      setRealtimeNotice(event.message ?? 'Tu oferta fue superada.');
+      void refetch();
     });
 
     const unsubscribeStatus = addRealtimeStatusListener((nextStatus) => {
@@ -100,9 +114,10 @@ export function LiveAuctionScreen() {
 
     return () => {
       unsubscribeAuction();
+      unsubscribeUserBidEvents();
       unsubscribeStatus();
     };
-  }, [id, queryClient, refetch, session]);
+  }, [id, queryClient, refetch, session, sessionEmail]);
 
   useEffect(() => {
     if (!realtimeNotice) return;
