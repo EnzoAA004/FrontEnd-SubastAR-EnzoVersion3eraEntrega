@@ -72,10 +72,6 @@ export function LiveAuctionScreen() {
       }
 
       if (event.type === 'BID_OUTBID') {
-        if (event.previousLeaderEmail?.toLowerCase() === sessionEmail) {
-          setRealtimeNotice('Tu oferta fue superada.');
-          void refetch();
-        }
         return;
       }
 
